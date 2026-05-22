@@ -54,6 +54,10 @@ Run directly — no installation needed. Scripts that require elevation are mark
 | `Reset-Network.ps1` | ⚠️ Flush DNS, reset Winsock, release/renew IP |
 | `Clear-TempFiles.ps1` | ⚠️ Delete temp files from common locations |
 | `Fix-WindowsUpdate.ps1` | ⚠️ Reset stuck Windows Update components |
+| `Fix-WiFi.ps1` | Auto-elevates — resets network stack, disables WiFi/USB power saving, restarts wireless adapters |
+| `Fix-Printers.ps1` | ⚠️ Fixes stuck spooler, broken ports, Point & Print restrictions, RPC error 0x00000709 |
+| `Fix-NetworkSharing.ps1` | ⚠️ Enables file/printer sharing, creates sharing user, fixes SMB and firewall rules |
+| `Install-NetworkPrinter.ps1` | ⚠️ Auto-detects LAN printer by IP and installs it with TCP/IP port |
 
 **Run a script:**
 ```powershell
