@@ -44,6 +44,26 @@ _Empty — coming soon._
 
 _Empty — coming soon._
 
+### PowerShell Scripts (`/scripts`)
+
+Run directly — no installation needed. Scripts that require elevation are marked with ⚠️.
+
+| Script | What it does |
+|---|---|
+| `Get-SystemInfo.ps1` | Quick summary: OS, CPU, RAM, disks, uptime |
+| `Reset-Network.ps1` | ⚠️ Flush DNS, reset Winsock, release/renew IP |
+| `Clear-TempFiles.ps1` | ⚠️ Delete temp files from common locations |
+| `Fix-WindowsUpdate.ps1` | ⚠️ Reset stuck Windows Update components |
+
+**Run a script:**
+```powershell
+# From the repo root
+.\scripts\Get-SystemInfo.ps1
+
+# Scripts requiring elevation — open an admin terminal first
+.\scripts\Reset-Network.ps1
+```
+
 ---
 
 ## Repository layout
@@ -54,6 +74,7 @@ AI-Helpers/
 ├── install.sh           ← Linux / macOS installer
 ├── skills/
 │   └── session-logging/ ← Claude Code skill
+├── scripts/             ← PowerShell utilities for Windows
 ├── prompts/
 ├── commands/
 └── helpers/
@@ -64,3 +85,9 @@ AI-Helpers/
 1. Create a folder under `skills/your-skill-name/`
 2. Add a `SKILL.md` with the required frontmatter (`name`, `description`)
 3. Commit and push — the installer will pick it up automatically on the next install/update
+
+## Adding a new script
+
+1. Drop a `.ps1` file into `scripts/`
+2. Add a row to the Scripts table in this README
+3. Commit and push
