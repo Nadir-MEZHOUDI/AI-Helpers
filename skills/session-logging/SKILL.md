@@ -1,12 +1,12 @@
 ---
 name: session-logging
-description: Sets up the AI session logging system on a project and writes session summary entries. Use when the user runs /session-logging to initialize the system on a new project (creates AI_SESSIONS.md and writes session logging instructions into AGENTS.md and/or CLAUDE.md). Also use when the user says "write the session summary", "write session log", "log the session", or any end-of-session summary request — in that case, append a new entry to AI_SESSIONS.md.
+description: Sets up the AI session logging system on a project and writes session summary entries. Use when the user runs /session-logging to initialize the system on a new project (creates AI_SESSIONS.md and writes session logging instructions into AGENTS.md and/or CLAUDE.md). Also use when the user says "write the session summary", "write session log", "log the session", or any end-of-session summary request — in that case, append a new entry to AI_SESSIONS.md and commit everything. ONLY trigger Append mode at the successful end of a session where real work was completed — never mid-session, never during a question, never when interrupted.
 ---
 
 This skill has two modes. Detect which one from context:
 
 - **`/session-logging` with no prior setup** → **Init mode**: set up the system on this project.
-- **"write the session summary"** (or similar) → **Append mode**: write and append the current session's entry.
+- **"write the session summary"** (or similar) → **Append mode**: write, append, and commit.
 
 ---
 
@@ -25,12 +25,12 @@ If it doesn't exist, create it with this exact content:
 ```markdown
 # AI Sessions Log
 
-Each AI agent appends one entry at the end of its session. Never edit a previous entry.
+Each AI agent appends one entry at the end of its session. Never edit a previous entry — every session is a new block, even on the same day.
 
 ## Entry format
 
 ​```
-### YYYY-MM-DD — {Tool} ({Model})
+### YYYY-MM-DD HH:MM — {Tool} ({Model})
 
 **What was done**
 - up to 5 bullet points
@@ -46,6 +46,7 @@ Rules:
 - Write in English regardless of the session language.
 - Add a `## Month YYYY` header when the month changes.
 - Keep bullets tight — one line each.
+- Always append — never modify a previous entry, even if the date is the same.
 
 ---
 ```
@@ -66,15 +67,15 @@ If yes:
 
 ## Session Logging
 
-At the end of every session, append one entry to `AI_SESSIONS.md` at the repo root. Rules:
+At the end of every **successful** session (work completed, not interrupted), append one entry to `AI_SESSIONS.md` at the repo root, then commit all changes. Rules:
 
-- **Append only** — never edit a previous entry.
+- **Append only** — never edit a previous entry, even if the date is the same. Every session = a new block.
 - **English always** — regardless of the language used during the session.
 - **Add a `## Month YYYY` header** if the month changed since the last entry.
 - Use this template:
 
 ​```
-### YYYY-MM-DD — {Tool} ({Model})
+### YYYY-MM-DD HH:MM — {Tool} ({Model})
 
 **What was done**
 - up to 5 bullet points
@@ -86,7 +87,7 @@ At the end of every session, append one entry to `AI_SESSIONS.md` at the repo ro
 - output of `git diff --name-only HEAD`
 ​```
 
-When the user says "write the session summary" (or equivalent), generate and append this entry.
+After appending, stage all modified/untracked files and commit with: `session: YYYY-MM-DD HH:MM — {Tool}`. No confirmation needed.
 ```
 
 ### Step 3 — Update CLAUDE.md (if it exists)
@@ -100,7 +101,7 @@ Append a brief reference at the end (skip if already present):
 
 ## Session Logging
 
-At the end of every session, append a summary to `AI_SESSIONS.md`. See that file or `AGENTS.md → Session Logging` for the format. Never edit previous entries.
+At the end of every successful session, append a summary to `AI_SESSIONS.md` then commit all changes. See that file or `AGENTS.md → Session Logging` for the format. Never edit previous entries — always append a new block.
 ```
 
 If yes but AGENTS.md does NOT exist:
@@ -114,27 +115,26 @@ Tell the user exactly what was created or modified, and what was skipped (alread
 
 ## Append Mode
 
-Run when the user asks to write the session summary at the end of a session.
+Run **only** at the successful end of a session where actual file changes were made. Do NOT run if the session was interrupted, if the user is still asking questions, or if no real work was done.
 
 ### Step 1 — Gather modified files
 
-Run:
+Run both commands in parallel:
 ```
 git diff --name-only HEAD
-```
-
-If the repo has uncommitted new files, also run:
-```
 git status --short
 ```
-and include untracked files that were clearly created this session (marked `??`).
+
+Collect:
+- All files from `git diff --name-only HEAD`
+- Any untracked files (marked `??` in `git status`) that were clearly created this session
 
 ### Step 2 — Compose the entry
 
-Write in English. Use this structure:
+Get the current local time for the timestamp. Write in English. Use this structure:
 
 ```
-### YYYY-MM-DD — {Tool} ({Model})
+### YYYY-MM-DD HH:MM — {Tool} ({Model})
 
 **What was done**
 - (up to 5 bullets — what actually changed or was decided, not what was discussed)
@@ -157,6 +157,19 @@ Read the last few lines of `AI_SESSIONS.md`. If the current month (`## Month YYY
 
 ### Step 4 — Append to AI_SESSIONS.md
 
-Append the entry (and month header if needed) to the end of `AI_SESSIONS.md`. Never modify any line above the append point.
+Append the entry (and month header if needed) to the end of `AI_SESSIONS.md`.
 
-Confirm to the user with: "Session summary appended to AI_SESSIONS.md."
+**Critical rule:** Always append — never modify any existing line, even if there is already an entry for today. Multiple sessions on the same day each get their own separate block.
+
+### Step 5 — Commit everything
+
+Stage all modified and untracked session files plus `AI_SESSIONS.md`, then commit immediately without asking the user:
+
+```
+git add <all modified files from Step 1> AI_SESSIONS.md
+git commit -m "session: YYYY-MM-DD HH:MM — {Tool}"
+```
+
+Use the exact same timestamp from the entry header.
+
+Confirm to the user with: "Session summary appended and committed."
