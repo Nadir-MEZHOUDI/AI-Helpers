@@ -1,0 +1,16 @@
+<div class="error-box">
+    <strong>@Error.Title</strong>
+    @if (Error.Detail is { Length: > 0 })
+    {
+        <span>@Error.Detail</span>
+    }
+    @if (Retry.HasDelegate)
+    {
+        <button class="button secondary" @onclick="Retry">Réessayer</button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ApiException Error { get; set; } = default!;
+    [Parameter] public EventCallback Retry { get; set; }
+}

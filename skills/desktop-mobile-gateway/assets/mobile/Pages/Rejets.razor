@@ -1,0 +1,42 @@
+@page "/rejets"
+@inherits PagedPage<Rejet>
+
+<div class="page-head"><h1>Rejets et paiements</h1></div>
+<PeriodChips Selected="Period" SelectedChanged="ChangePeriodAsync" />
+<p class="muted small">Montant dû = part caisse + majorations + FAE, comparé au virement reçu.</p>
+
+@foreach (var r in Items)
+{
+    <article class="card item">
+        <div class="item-head">
+            <strong>N° @r.NumBord</strong>
+            <span class="tag @Css(r)">@r.StatutRejet</span>
+        </div>
+        <div class="item-sub">
+            <span>@r.Centre · @Fmt.Number(r.NombreFactures) factures</span>
+            <span>@Fmt.Date(r.DateBord)</span>
+        </div>
+        <dl class="figures">
+            <div><dt>Dû</dt><dd>@Fmt.Money(r.MontantFacture)</dd></div>
+            <div><dt>Viré</dt><dd>@Fmt.Money(r.MontantVirement)</dd></div>
+            @if (r.MontantRejete > 0)
+            {
+                <div class="bad"><dt>Rejeté</dt><dd>@Fmt.Money(r.MontantRejete) (@Fmt.Percent(r.TauxRejet))</dd></div>
+            }
+        </dl>
+    </article>
+}
+
+<ListFooter Count="Items.Count" Total="Total" Loading="Loading" Error="Error" More="LoadMoreAsync" />
+
+@code {
+    protected override Task<Page<Rejet>> FetchAsync(Period period, int skip) => Api.RejetsAsync(period, skip);
+
+    private static string Css(Rejet r) => r switch
+    {
+        { EstOuvert: true } => "",
+        { EstPaye: false } => "warn",
+        { MontantRejete: > 0 } => "bad",
+        _ => "ok"
+    };
+}

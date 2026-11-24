@@ -1,0 +1,54 @@
+@* Vertical bars, oldest on the left. A bar with two values is stacked (s0 under s1). *@
+<div class="chart @(Scroll ? "scroll" : "")" role="list">
+    @foreach (var i in Order())
+    {
+        var bar = Bars[i];
+        var index = i;
+        var total = bar.Values.Sum();
+        <button type="button" role="listitem" class="col @(Colorful ? $"c{i % 8}" : "") @(i == Selected ? "on" : "")"
+                title="@bar.Title" @onclick="() => OnSelect.InvokeAsync(index)">
+            <span class="col-plot">
+                <span class="col-top">@bar.Top</span>
+                <span class="col-stack" style="height:@Height(total)">
+                    @if (bar.Values.Count > 1)
+                    {
+                        for (var j = 0; j < bar.Values.Count; j++)
+                        {
+                            <span class="seg s@(j)" style="flex-grow:@Grow(bar.Values[j], total)"></span>
+                        }
+                    }
+                </span>
+            </span>
+            <span class="col-label">@bar.Label</span>
+        </button>
+    }
+</div>
+
+@code {
+    public sealed record Bar(string Label, string Title, IReadOnlyList<decimal> Values, string? Top = null);
+
+    [Parameter, EditorRequired] public IReadOnlyList<Bar> Bars { get; set; } = [];
+    [Parameter] public int Selected { get; set; } = -1;
+    [Parameter] public EventCallback<int> OnSelect { get; set; }
+
+    /// <summary>One color per bar, like the desktop charts. Off for stacked bars, which color by value.</summary>
+    [Parameter] public bool Colorful { get; set; }
+
+    /// <summary>Fixed-width bars that scroll sideways, starting on the most recent ones.</summary>
+    [Parameter] public bool Scroll { get; set; }
+
+    private decimal _max;
+
+    protected override void OnParametersSet() =>
+        _max = Bars.Count == 0 ? 0 : Bars.Max(b => b.Values.Sum());
+
+    // row-reverse in scroll mode: the last bar is drawn first so the view opens on it.
+    private IEnumerable<int> Order() =>
+        Scroll ? Enumerable.Range(0, Bars.Count).Reverse() : Enumerable.Range(0, Bars.Count);
+
+    private string Height(decimal value) =>
+        _max <= 0 || value <= 0 ? "2px" : $"{Math.Round(value / _max * 82m, 1).ToString(System.Globalization.CultureInfo.InvariantCulture)}%";
+
+    private static string Grow(decimal value, decimal total) =>
+        total <= 0 ? "0" : Math.Round(value / total * 100m, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+}

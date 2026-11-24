@@ -1,0 +1,155 @@
+@page "/login"
+@layout EmptyLayout
+@using System.Text.RegularExpressions
+@inject Api Api
+@inject Session Session
+@inject NavigationManager Nav
+@inject IJSRuntime Js
+
+<div class="login">
+    <img src="icon-192.png" alt="" class="login-logo" />
+    <h1>My<b>Product</b></h1>
+    <p class="muted">Votre pharmacie, partout.</p>
+
+    @if (!_withPassword)
+    {
+        <EditForm Model="this" OnSubmit="LinkAsync" FormName="link">
+            <label>
+                Code affiché dans MyProduct
+                <input class="code-input" value="@_code" @oninput="CodeChanged" placeholder="ABCD-2345" maxlength="9"
+                       autocomplete="one-time-code" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+            </label>
+
+            @if (_error is not null)
+            {
+                <ErrorBox Error="_error" />
+            }
+
+            <button class="button" type="submit" disabled="@(_busy || !IsComplete)">
+                @(_busy ? "Liaison…" : "Lier ce téléphone")
+            </button>
+        </EditForm>
+
+        <p class="hint">
+            Sur l'ordinateur de la pharmacie, ouvrez MyProduct, menu <strong>Application mobile</strong>.
+            Le code ne sert qu'une fois : le téléphone reste ensuite connecté.
+        </p>
+        <p class="hint">Sur iPhone, ajoutez d'abord l'application à l'écran d'accueil, puis liez-la depuis l'icône.</p>
+        <button class="link-button" @onclick="() => { _withPassword = true; _error = null; }">Se connecter avec un identifiant</button>
+    }
+    else
+    {
+        <EditForm Model="this" OnSubmit="SignInAsync" FormName="login">
+            <label>
+                Nom d'utilisateur
+                <InputText @bind-Value="UserName" autocomplete="username" autocapitalize="none" spellcheck="false" />
+            </label>
+            <label>
+                Mot de passe
+                <InputText @bind-Value="Password" type="password" autocomplete="current-password" />
+            </label>
+
+            @if (_error is not null)
+            {
+                <ErrorBox Error="_error" />
+            }
+
+            <button class="button" type="submit" disabled="@(_busy || string.IsNullOrWhiteSpace(UserName) || string.IsNullOrEmpty(Password))">
+                @(_busy ? "Connexion…" : "Se connecter")
+            </button>
+        </EditForm>
+        <button class="link-button" @onclick="() => { _withPassword = false; _error = null; }">Lier avec un code</button>
+    }
+</div>
+
+@code {
+    /// <summary>Set by the QR code shown in MyProduct: the phone links without typing.</summary>
+    [SupplyParameterFromQuery(Name = "code")]
+    public string? CodeFromQr { get; set; }
+
+    private string _code = "";
+    private bool _withPassword;
+    private string UserName { get; set; } = "";
+    private string Password { get; set; } = "";
+    private bool _busy;
+    private ApiException? _error;
+
+    private bool IsComplete => Regex.IsMatch(_code, "^[A-Z0-9]{4}-[A-Z0-9]{4}$");
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(CodeFromQr))
+        {
+            _code = Format(CodeFromQr);
+            if (IsComplete)
+                await LinkAsync();
+            return;
+        }
+
+        if (Session.IsSignedIn)
+            Nav.NavigateTo("");
+    }
+
+    private void CodeChanged(ChangeEventArgs e) => _code = Format(e.Value?.ToString());
+
+    /// <summary>Upper case, the dash added after four characters, whatever was typed or pasted.</summary>
+    private static string Format(string? input)
+    {
+        var raw = new string((input ?? "").Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).Take(8).ToArray());
+        return raw.Length > 4 ? $"{raw[..4]}-{raw[4..]}" : raw;
+    }
+
+    private async Task LinkAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Api.PairAsync(_code, DeviceName(await Js.InvokeAsync<string>("app.userAgent")));
+            Nav.NavigateTo("", replace: true);
+        }
+        catch (ApiException ex)
+        {
+            _error = ex;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Session.SignInAsync(await Api.LoginAsync(UserName.Trim(), Password));
+            Nav.NavigateTo("");
+        }
+        catch (ApiException ex)
+        {
+            _error = ex;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Shown in MyProduct's list of linked phones.</summary>
+    private static string DeviceName(string userAgent)
+    {
+        if (userAgent.Contains("iPhone")) return "iPhone";
+        if (userAgent.Contains("iPad")) return "iPad";
+        if (userAgent.Contains("Android"))
+        {
+            // "Android 14; SM-A546B Build/…" — recent Chrome hides the model as "K".
+            var model = Regex.Match(userAgent, @"Android [\d.]+; ([^;)]+?)(?: Build/|\))").Groups[1].Value.Trim();
+            return model is "" or "K" ? "Android" : $"Android · {model}";
+        }
+        if (userAgent.Contains("Windows")) return "PC Windows";
+        if (userAgent.Contains("Macintosh")) return "Mac";
+        return "Téléphone";
+    }
+}

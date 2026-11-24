@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b3b2e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="MyProduct" />
+    <title>MyProduct</title>
+    <base href="/" />
+    <link rel="preload" href="fonts/manrope.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="css/app.css" />
+    <link href="manifest.webmanifest" rel="manifest" />
+    <link rel="apple-touch-icon" sizes="512x512" href="maskable-512.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="maskable-192.png" />
+    <link rel="icon" type="image/png" href="icon-192.png" />
+</head>
+
+<body>
+    <div id="app">
+        <svg class="loading-progress">
+            <circle r="40%" cx="50%" cy="50%" />
+            <circle r="40%" cx="50%" cy="50%" />
+        </svg>
+        <div class="loading-progress-text"></div>
+    </div>
+
+    <div id="blazor-error-ui">
+        Une erreur est survenue.
+        <a href="." class="reload">Recharger</a>
+        <span class="dismiss">🗙</span>
+    </div>
+    <script>
+        (() => {
+            // beforeinstallprompt may fire before Blazor boots, so it is captured here and replayed to .NET.
+            let deferred = null, listener = null;
+            const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+            const ios = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            const state = () => standalone() ? 'none' : deferred ? 'prompt' : ios() ? 'ios' : 'none';
+            const notify = () => listener?.invokeMethodAsync('OnInstallStateChanged', state());
+            addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; notify(); });
+            addEventListener('appinstalled', () => { deferred = null; notify(); });
+
+            const fromBase64Url = (value) => {
+                const base64 = (value + '='.repeat((4 - value.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+                return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+            };
+            const toInfo = (subscription) => {
+                if (!subscription) return null;
+                const json = subscription.toJSON();
+                return { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth };
+            };
+            const registration = () => navigator.serviceWorker.ready;
+            const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+            window.app = {
+                userAgent: () => navigator.userAgent,
+                confirm: (text) => window.confirm(text),
+                push: {
+                    state: async () => {
+                        if (!pushSupported()) return ios() && !standalone() ? 'ios-install' : 'unsupported';
+                        if (Notification.permission === 'denied') return 'denied';
+                        const subscription = await (await registration()).pushManager.getSubscription();
+                        return subscription && Notification.permission === 'granted' ? 'on' : 'off';
+                    },
+                    subscribe: async (publicKey) => {
+                        if (await Notification.requestPermission() !== 'granted') return null;
+                        const manager = (await registration()).pushManager;
+                        const key = fromBase64Url(publicKey);
+                        let subscription = await manager.getSubscription();
+                        // A subscription made with another server key cannot be reused.
+                        const current = subscription?.options?.applicationServerKey;
+                        if (subscription && current && new Uint8Array(current).toString() !== key.toString()) {
+                            await subscription.unsubscribe();
+                            subscription = null;
+                        }
+                        subscription ??= await manager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+                        return toInfo(subscription);
+                    },
+                    current: async () => pushSupported() ? toInfo(await (await registration()).pushManager.getSubscription()) : null,
+                    unsubscribe: async () => {
+                        if (!pushSupported()) return null;
+                        const subscription = await (await registration()).pushManager.getSubscription();
+                        if (!subscription) return null;
+                        const endpoint = subscription.endpoint;
+                        await subscription.unsubscribe();
+                        return endpoint;
+                    },
+                    // On logout the server already drops this phone's subscriptions; the browser forgets its own.
+                    forget: async () => {
+                        try { await window.app.push.unsubscribe(); } catch { }
+                    }
+                },
+                install: {
+                    watch: (ref) => { listener = ref; return state(); },
+                    unwatch: () => { listener = null; },
+                    run: async () => {
+                        if (deferred) {
+                            const prompt = deferred;
+                            deferred = null;
+                            await prompt.prompt();
+                            await prompt.userChoice;
+                            notify();
+                        } else if (ios()) {
+                            alert("Pour installer MyProduct : touchez le bouton Partager, puis « Sur l'écran d'accueil ».");
+                        }
+                    }
+                }
+            };
+        })();
+    </script>
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script>navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' });</script>
+</body>
+
+</html>

@@ -1,0 +1,142 @@
+@page "/notifications"
+@inject Api Api
+@inject IJSRuntime Js
+
+<div class="page-head"><h1>Notifications</h1></div>
+
+<section class="card notify">
+    <div class="notify-head">
+        <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+        <div>
+            <strong>Alertes sur cet appareil</strong>
+            <span class="muted small">@StateText</span>
+        </div>
+    </div>
+
+    @if (_state == "on")
+    {
+        <div class="notify-actions">
+            <button class="button secondary small" @onclick="TestAsync" disabled="@_busy">Envoyer un test</button>
+            <button class="button secondary small" @onclick="DisableAsync" disabled="@_busy">Désactiver</button>
+        </div>
+    }
+    else if (_state == "off")
+    {
+        <button class="button wide" @onclick="EnableAsync" disabled="@_busy">Activer les notifications</button>
+    }
+
+    @if (_message is not null)
+    {
+        <p class="small @(_messageIsError ? "bad-text" : "ok-text")">@_message</p>
+    }
+</section>
+
+<section class="card">
+    <h2>Vous serez prévenu</h2>
+    <ul class="bullets">
+        <li><strong>Bordereau payé</strong> : dès que le virement de la CNAS est enregistré.</li>
+        <li><strong>Rejet</strong> : quand un virement est inférieur au montant dû, avec le montant rejeté.</li>
+        <li><strong>Malades chroniques</strong> : chaque matin, ceux en retard ou attendus aujourd'hui.</li>
+    </ul>
+    <p class="muted small">Les alertes partent de l'ordinateur de la pharmacie : il doit être allumé et connecté.</p>
+</section>
+
+@code {
+    private string _state = "loading";
+    private bool _busy;
+    private string? _message;
+    private bool _messageIsError;
+
+    private string StateText => _state switch
+    {
+        "on" => "Activées : les alertes arrivent même application fermée.",
+        "off" => "Désactivées.",
+        "denied" => "Bloquées par le navigateur. Autorisez les notifications de ce site dans ses réglages.",
+        "ios-install" => "Sur iPhone, installez d'abord l'application (Partager → « Sur l'écran d'accueil »), puis ouvrez-la depuis l'icône.",
+        "unsupported" => "Ce navigateur ne gère pas les notifications.",
+        _ => "Vérification…"
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+        _state = await Js.InvokeAsync<string>("app.push.state");
+        StateHasChanged();
+    }
+
+    private async Task EnableAsync()
+    {
+        await RunAsync(async () =>
+        {
+            var key = await Api.PushKeyAsync();
+            var subscription = await Js.InvokeAsync<PushSubscriptionInfo?>("app.push.subscribe", key);
+            if (subscription is null)
+            {
+                _state = await Js.InvokeAsync<string>("app.push.state");
+                return;
+            }
+
+            await Api.SubscribePushAsync(subscription);
+            _state = "on";
+            await Api.TestPushAsync(subscription.Endpoint);
+            Show("Notifications activées. Une notification de test vient d'être envoyée.");
+        });
+    }
+
+    private async Task DisableAsync()
+    {
+        await RunAsync(async () =>
+        {
+            if (await Js.InvokeAsync<string?>("app.push.unsubscribe") is { } endpoint)
+                await Api.UnsubscribePushAsync(endpoint);
+            _state = "off";
+            Show("Notifications désactivées sur cet appareil.");
+        });
+    }
+
+    private async Task TestAsync()
+    {
+        await RunAsync(async () =>
+        {
+            if (await Js.InvokeAsync<PushSubscriptionInfo?>("app.push.current") is not { } subscription)
+            {
+                _state = "off";
+                return;
+            }
+
+            // Re-register in case the server lost it (e.g. it expired at the push service).
+            await Api.SubscribePushAsync(subscription);
+            await Api.TestPushAsync(subscription.Endpoint);
+            Show("Notification de test envoyée.");
+        });
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            await action();
+        }
+        catch (ApiException ex)
+        {
+            Show(ex.Detail is null ? ex.Title : $"{ex.Title} {ex.Detail}", error: true);
+        }
+        catch (JSException ex)
+        {
+            Show($"Le navigateur a refusé : {ex.Message}", error: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Show(string message, bool error = false)
+    {
+        _message = message;
+        _messageIsError = error;
+    }
+}

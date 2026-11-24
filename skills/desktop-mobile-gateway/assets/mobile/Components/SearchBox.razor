@@ -1,0 +1,36 @@
+@implements IDisposable
+
+<label class="search">
+    <svg viewBox="0 0 24 24"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35" /></svg>
+    <input type="search" placeholder="@Placeholder" value="@Value" @oninput="OnInput" enterkeyhint="search" autocomplete="off" />
+</label>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Rechercher";
+
+    /// <summary>Raised once typing pauses, not on every key: each search asks the pharmacy computer.</summary>
+    [Parameter] public EventCallback<string> Search { get; set; }
+
+    private CancellationTokenSource? _pending;
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        _pending?.Cancel();
+        _pending = new CancellationTokenSource();
+        var token = _pending.Token;
+        var text = e.Value?.ToString() ?? "";
+        try
+        {
+            await Task.Delay(400, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        await Search.InvokeAsync(text.Trim());
+    }
+
+    public void Dispose() => _pending?.Cancel();
+}

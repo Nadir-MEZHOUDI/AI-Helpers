@@ -31,6 +31,7 @@ Skills are invoked with `/skill-name` inside Claude Code.
 | Skill | Trigger | What it does |
 |---|---|---|
 | `session-logging` | `/session-logging` or "write the session summary" | Sets up AI session logging on a new project, or appends a session summary entry to `AI_SESSIONS.md` |
+| `desktop-mobile-gateway` | "add a gateway and mobile app like CHIFA" | Adds a Blazor WASM phone app (PWA) and a cloud SignalR gateway to an on-premise .NET desktop app: agent, linking by pairing code, push, Docker/Azure deploy, tests and lessons learned from SmartCHIFA |
 
 ### Prompts (`/prompts`)
 

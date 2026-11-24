@@ -1,0 +1,27 @@
+name: myapp-gateway
+
+# Production stack on the VPS (/home/<vps-user>/myapp-gateway). The pipeline copies this file on every deploy;
+# .env lives only on the server (created by deploy/gateway/bootstrap-vps.sh).
+# Shares the `shared-net` network and the `postgres` container with the other apps, with its own database.
+services:
+  web:
+    image: ghcr.io/<github-user>/myapp-gateway:latest
+    build:
+      context: ../..
+      dockerfile: MyApp.Gateway/Dockerfile
+    container_name: myapp-gateway-web
+    ports:
+      - "127.0.0.1:${GATEWAY_WEB_PORT:-8094}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Gateway: Host=${POSTGRES_HOST:-postgres};Port=5432;Database=${POSTGRES_DB:-myapp_gateway};Username=${POSTGRES_USER:-myapp_gateway};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      Gateway__AdminKey: ${GATEWAY_ADMIN_KEY:?Set GATEWAY_ADMIN_KEY in .env}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
+    networks:
+      - shared-net
+    restart: unless-stopped
+
+networks:
+  shared-net:
+    external: true

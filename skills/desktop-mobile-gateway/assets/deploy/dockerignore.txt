@@ -1,0 +1,10 @@
+# Only the gateway image (with the phone app it serves) is built from this repository: send just its projects to Docker.
+*
+!Directory.Build.props
+!MyApp.Contract/
+!MyApp.Gateway/
+!MyApp.Gateway.Data/
+!MyApp.Mobile/
+**/bin/
+**/obj/
+**/Properties/launchSettings.json

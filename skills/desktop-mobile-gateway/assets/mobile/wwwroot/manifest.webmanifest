@@ -1,0 +1,70 @@
+{
+  "name": "MyProduct",
+  "short_name": "MyProduct",
+  "description": "Vos chiffres, partout : téléphone, tablette et ordinateur.",
+  "lang": "fr",
+  "dir": "ltr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "launch_handler": { "client_mode": ["focus-existing", "auto"] },
+  "orientation": "any",
+  "categories": ["business", "medical", "productivity"],
+  "background_color": "#0b3b2e",
+  "theme_color": "#0b3b2e",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Dernières factures",
+      "short_name": "Factures",
+      "url": "./factures",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Rechercher un patient",
+      "short_name": "Patients",
+      "url": "./patients",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Chroniques à relancer",
+      "short_name": "À relancer",
+      "url": "./patients?relance=1",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Médicaments",
+      "short_name": "Médicaments",
+      "url": "./medicaments",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "maskable-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    },
+    {
+      "src": "maskable-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    }
+  ]
+}

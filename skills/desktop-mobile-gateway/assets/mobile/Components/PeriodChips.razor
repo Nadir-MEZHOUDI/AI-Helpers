@@ -1,0 +1,16 @@
+<div class="chips">
+    @foreach (var period in Options ?? Choices)
+    {
+        <button class="chip @(period.Label == Selected.Label ? "active" : "")" @onclick="() => SelectedChanged.InvokeAsync(period)">@period.Label</button>
+    }
+</div>
+
+@code {
+    public static readonly IReadOnlyList<Period> Choices = Period.Choices();
+
+    [Parameter, EditorRequired] public Period Selected { get; set; } = default!;
+    [Parameter] public EventCallback<Period> SelectedChanged { get; set; }
+    [Parameter] public IReadOnlyList<Period>? Options { get; set; }
+
+    public static Period Named(string label) => Choices.First(p => p.Label == label);
+}

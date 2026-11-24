@@ -1,0 +1,22 @@
+@inject IJSRuntime Js
+@inject NavigationManager Nav
+
+<button class="back-button" title="Retour" @onclick="BackAsync">
+    <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
+</button>
+
+@code {
+    /// <summary>Set once the user moved inside the app: "back" then returns to the previous page.</summary>
+    public static bool HasInAppHistory { get; set; }
+
+    /// <summary>Where to go when the page was opened directly (from a notification or a link).</summary>
+    [Parameter, EditorRequired] public string Fallback { get; set; } = "";
+
+    private async Task BackAsync()
+    {
+        if (HasInAppHistory)
+            await Js.InvokeVoidAsync("history.back");
+        else
+            Nav.NavigateTo(Fallback);
+    }
+}

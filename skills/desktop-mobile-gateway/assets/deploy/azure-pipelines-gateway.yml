@@ -1,0 +1,105 @@
+# MyApp.Gateway CI/CD (same pattern as SmartApp.Licensing)
+#   Image  : build the gateway image and push it to GHCR.
+#   Deploy : copy docker-compose.yml to the VPS, pull and restart, then check /health.
+# Needs the `ghcr-login` and `vps-ssh` service connections shared with this project.
+# One-time VPS setup before the first deploy: deploy/gateway/bootstrap-vps.sh.
+
+trigger:
+  branches:
+    include:
+    - master
+  paths:
+    include:
+    - MyApp.Gateway
+    - MyApp.Gateway.Data
+    - MyApp.Contract
+    - MyApp.Mobile
+    - deploy/gateway
+    - azure-pipelines-gateway.yml
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  imageRepository: '<github-user>/myapp-gateway'
+  vpsRoot: '/home/<vps-user>/myapp-gateway'
+  vpsPort: '8094'
+
+stages:
+- stage: Image
+  displayName: Docker image
+  jobs:
+  - job: BuildPush
+    displayName: Build and push gateway image to GHCR
+    steps:
+    - task: Docker@2
+      displayName: Login GHCR
+      inputs:
+        command: login
+        containerRegistry: 'ghcr-login'
+
+    - task: Docker@2
+      displayName: Build and push gateway image
+      inputs:
+        command: buildAndPush
+        repository: '$(imageRepository)'
+        dockerfile: '$(Build.SourcesDirectory)/MyApp.Gateway/Dockerfile'
+        buildContext: '$(Build.SourcesDirectory)'
+        tags: |
+          latest
+          $(Build.BuildNumber)
+
+- stage: Deploy
+  displayName: Deploy to VPS
+  dependsOn: Image
+  jobs:
+  - job: DeployVps
+    displayName: SSH deploy
+    steps:
+    - task: SSH@0
+      displayName: Check VPS bootstrap
+      inputs:
+        sshEndpoint: 'vps-ssh'
+        runOptions: inline
+        inline: |-
+          set -e
+          if [ ! -w "$(vpsRoot)" ] || [ ! -s "$(vpsRoot)/.env" ]; then
+            echo "MyApp.Gateway is not bootstrapped on this server."
+            echo "Run once from your PC:  ssh vps 'bash -s' < deploy/gateway/bootstrap-vps.sh"
+            exit 1
+          fi
+
+    - task: CopyFilesOverSSH@0
+      displayName: Copy docker-compose.yml
+      inputs:
+        sshEndpoint: 'vps-ssh'
+        sourceFolder: '$(Build.SourcesDirectory)/deploy/gateway'
+        contents: 'docker-compose.yml'
+        targetFolder: '$(vpsRoot)'
+        overwrite: true
+        failOnEmptySource: true
+
+    - task: SSH@0
+      displayName: Pull, start and health-check
+      inputs:
+        sshEndpoint: 'vps-ssh'
+        runOptions: inline
+        inline: |-
+          set -e
+          cd $(vpsRoot)
+          docker network ls | grep -q "shared-net" || docker network create shared-net
+          (docker compose pull web) 2>&1
+          (docker compose up -d --no-build --remove-orphans) 2>&1
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:$(vpsPort)/health >/dev/null 2>&1; then
+              echo "Healthy on 127.0.0.1:$(vpsPort)"
+              (docker compose ps) 2>&1
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "The gateway did not become healthy. Last logs:"
+          (docker compose logs --tail 60 web) 2>&1
+          exit 1

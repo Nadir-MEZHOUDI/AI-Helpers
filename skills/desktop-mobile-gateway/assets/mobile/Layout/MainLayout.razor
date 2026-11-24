@@ -1,0 +1,175 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject Session Session
+@inject Api Api
+@inject NavigationManager Nav
+@inject IJSRuntime Js
+
+@if (Session.IsSignedIn)
+{
+    <div class="shell @(_menuOpen ? "menu-open" : "")" @onkeydown="OnKeyDown">
+        <aside class="drawer" id="menu" aria-label="Menu">
+            <div class="drawer-brand">
+                <img src="icon-192.png" alt="" />
+                <div>
+                    <strong>MyProduct</strong>
+                    <span>@Session.Current!.Pharmacy</span>
+                </div>
+            </div>
+            <nav class="drawer-nav">
+                @foreach (var item in NavItem.All)
+                {
+                    <NavLink href="@item.Href" Match="@(item.Href == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                        <svg viewBox="0 0 24 24"><path d="@item.Icon" /></svg>@item.Label
+                    </NavLink>
+                }
+            </nav>
+            <div class="drawer-foot">
+                @if (_install != "none")
+                {
+                    <button class="drawer-action" @onclick="InstallAsync">
+                        <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>Installer l'application
+                    </button>
+                }
+                <button class="drawer-action" @onclick="SignOutAsync">
+                    <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>Se déconnecter
+                </button>
+            </div>
+        </aside>
+        <div class="drawer-backdrop" @onclick="CloseMenu"></div>
+
+        <div class="main">
+            <header class="topbar">
+                <button class="icon-button menu-button" title="Menu" aria-controls="menu" aria-expanded="@(_menuOpen ? "true" : "false")" @onclick="ToggleMenu">
+                    <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+                </button>
+                <img class="topbar-logo" src="icon-192.png" alt="" />
+                <div class="topbar-title">
+                    <span class="pharmacy">@Session.Current!.Pharmacy</span>
+                    @if (_status is { } s)
+                    {
+                        <span class="status @(s.Online ? "online" : "offline")">
+                            <span class="dot"></span>@(s.Online ? "Pharmacie en ligne" : $"Hors ligne · vue {Fmt.Ago(s.LastSeenAt)}")
+                        </span>
+                    }
+                </div>
+                @if (_install != "none")
+                {
+                    <button class="install-button" title="Installer l'application" @onclick="InstallAsync">
+                        <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>Installer
+                    </button>
+                }
+            </header>
+
+            <main class="content">@Body</main>
+        </div>
+
+        <nav class="tabbar">
+            @foreach (var item in NavItem.All.Where(i => i.InTabBar))
+            {
+                <NavLink href="@item.Href" Match="@(item.Href == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                    <svg viewBox="0 0 24 24"><path d="@item.Icon" /></svg>@(item.Short ?? item.Label)
+                </NavLink>
+            }
+        </nav>
+    </div>
+}
+
+@code {
+    private OfficineStatus? _status;
+    private PeriodicTimer? _timer;
+    private string _install = "none";
+    private bool _menuOpen;
+    private DotNetObjectReference<MainLayout>? _self;
+
+    protected override void OnInitialized()
+    {
+        if (!Session.IsSignedIn)
+        {
+            Nav.NavigateTo("login");
+            return;
+        }
+
+        Nav.LocationChanged += OnLocationChanged;
+        _ = RefreshStatusLoopAsync();
+    }
+
+    // The pharmacy can go offline at any time (PC off, no internet): refresh the badge every 30 s.
+    private async Task RefreshStatusLoopAsync()
+    {
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        do
+        {
+            try
+            {
+                _status = await Api.StatusAsync();
+                StateHasChanged();
+            }
+            catch (ApiException)
+            {
+            }
+        } while (await _timer.WaitForNextTickAsync());
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !Session.IsSignedIn)
+            return;
+
+        _self = DotNetObjectReference.Create(this);
+        _install = await Js.InvokeAsync<string>("app.install.watch", _self);
+        StateHasChanged();
+    }
+
+    private void ToggleMenu() => _menuOpen = !_menuOpen;
+
+    private void CloseMenu() => _menuOpen = false;
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            _menuOpen = false;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        BackButton.HasInAppHistory = true;
+        if (!_menuOpen)
+            return;
+        _menuOpen = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task OnInstallStateChanged(string state)
+    {
+        _install = state;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task InstallAsync() => await Js.InvokeVoidAsync("app.install.run");
+
+    private async Task SignOutAsync()
+    {
+        var question = Session.DeviceToken is not null
+            ? "Se déconnecter ? Pour revenir, il faudra un nouveau code affiché dans MyProduct."
+            : "Se déconnecter ?";
+        if (!await Js.InvokeAsync<bool>("app.confirm", question))
+            return;
+
+        await Js.InvokeVoidAsync("app.push.forget");
+        await Api.LogoutAsync();
+        Nav.NavigateTo("login");
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        _timer?.Dispose();
+        if (_self is not null)
+        {
+            _ = Js.InvokeVoidAsync("app.install.unwatch").AsTask();
+            _self.Dispose();
+        }
+    }
+}

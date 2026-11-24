@@ -1,0 +1,246 @@
+@page "/statistiques"
+@inject Api Api
+@inject NavigationManager Nav
+
+<div class="page-head">
+    <h1>Statistiques</h1>
+</div>
+
+<div class="chips">
+    @foreach (var (kind, label) in Kinds)
+    {
+        <button class="chip @(kind == _kind ? "active" : "")" @onclick="() => ShowKind(kind)">@label</button>
+    }
+</div>
+<PeriodChips Selected="_period" SelectedChanged="ChangePeriodAsync" Options="Periods" />
+
+@if (_error is not null)
+{
+    <ErrorBox Error="_error" Retry="LoadAsync" />
+}
+else if (_data is null)
+{
+    <Loading />
+}
+else if (_data.Rows.Count == 0)
+{
+    <div class="empty">Aucune donnée sur cette période.</div>
+}
+else
+{
+    var t = _data.Totals;
+    <section class="card hero">
+        <span class="label">@KindLabel · @_period.Label</span>
+        <span class="amount">@Fmt.Money(t.Montant)</span>
+        <span class="muted">@Summary(t)</span>
+    </section>
+
+    <section class="kpis">
+        @if (_kind != "produits")
+        {
+            <div class="card kpi"><span class="label">Part caisse</span><span class="value">@Fmt.Money(t.Caisse)</span></div>
+        }
+        <div class="card kpi"><span class="label">Marge estimée</span><span class="value">@Fmt.Money(t.Marge)</span></div>
+        <div class="card kpi"><span class="label">Majorations</span><span class="value">@Fmt.Money(t.Maj)</span></div>
+        <div class="card kpi"><span class="label">Marge + Maj</span><span class="value">@Fmt.Money(t.Brut)</span></div>
+        @if (_kind == "bordereaux")
+        {
+            <div class="card kpi"><span class="label">Virements reçus</span><span class="value">@Fmt.Money(t.Virement)</span></div>
+            <div class="card kpi"><span class="label">Écart</span><span class="value @(t.Ecart > 0 ? "bad-text" : "")">@Fmt.Money(t.Ecart)</span></div>
+        }
+    </section>
+
+    @if (IsTime)
+    {
+        <section class="card">
+            <div class="chips small">
+                @foreach (var metric in TimeMetrics)
+                {
+                    <button class="chip @(metric == _metric ? "active" : "")" @onclick="() => _metric = metric">@metric</button>
+                }
+            </div>
+            <BarChart Bars="TimeBars()" Selected="_selected" OnSelect="i => _selected = i"
+                      Colorful="_metric != Brut" Scroll="_data.Rows.Count > 12" />
+            @if (_metric == Brut)
+            {
+                <div class="legend"><span class="s0">Marge estimée</span><span class="s1">Majorations</span></div>
+            }
+            @if (_selected >= 0 && _selected < _data.Rows.Count)
+            {
+                var r = _data.Rows[_selected];
+                <p class="chart-pick"><strong>@r.Label</strong> · @Fmt.Money(r.Montant) · @Fmt.Number(r.Factures) factures · marge @Fmt.Money(r.Marge) · maj @Fmt.Money(r.Maj)</p>
+            }
+        </section>
+
+        @foreach (var r in Enumerable.Reverse(_data.Rows))
+        {
+            <div class="card item">
+                <div class="item-head">
+                    <strong>@r.Label</strong>
+                    <strong>@Fmt.Money(r.Montant)</strong>
+                </div>
+                @if (r.Detail is not null)
+                {
+                    <div class="item-sub"><span>@r.Detail</span></div>
+                }
+                <div class="item-sub">
+                    <span>@Fmt.Number(r.Factures) factures · marge @Fmt.Money(r.Marge)</span>
+                    <span>maj @Fmt.Money(r.Maj)</span>
+                </div>
+                @if (_kind == "bordereaux")
+                {
+                    <div class="item-sub">
+                        @if (r.Virement is > 0)
+                        {
+                            <span>Virement @Fmt.Money(r.Virement)</span>
+                            <span class="@(r.Ecart > 0 ? "bad-text" : "ok-text")">écart @Fmt.Money(r.Ecart)</span>
+                        }
+                        else
+                        {
+                            <span class="muted">Non payé</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        var rows = RankedRows();
+        var max = rows.Count == 0 ? 0 : rows.Max(Value);
+        <div class="chips small">
+            @foreach (var metric in RankMetrics)
+            {
+                <button class="chip @(metric == RankMetric ? "active" : "")" @onclick="() => _rankMetric = metric">@metric</button>
+            }
+        </div>
+        @for (var i = 0; i < rows.Count; i++)
+        {
+            var r = rows[i];
+            <a class="card item link" href="@Link(r)">
+                <div class="item-head">
+                    <strong>@(i + 1). @r.Label</strong>
+                    <strong>@(RankMetric == Montant ? Fmt.Money(r.Montant) : Fmt.Number(Value(r)))</strong>
+                </div>
+                <div class="bar c@(i % 8)"><span style="width:@Width(Value(r), max)"></span></div>
+                <div class="item-sub">
+                    <span>@r.Detail</span>
+                    <span>@(_kind == "produits"
+                               ? (RankMetric == Montant ? $"{Fmt.Number(r.Quantite)} boîtes" : Fmt.Money(r.Montant))
+                               : $"{r.Factures} factures · {Fmt.Number(r.Quantite)} boîtes")</span>
+                </div>
+            </a>
+        }
+    }
+
+    @if (_data.Count > _data.Rows.Count)
+    {
+        <div class="list-end">@(IsTime ? $"Les {_data.Rows.Count} plus récents" : $"Les {_data.Rows.Count} premiers") sur @Fmt.Number(_data.Count) · les totaux portent sur tout</div>
+    }
+    <p class="muted small hint">La marge est estimée comme sur MyProduct (1/6 du montant) : le prix d'achat n'est pas dans la base CHIFA.</p>
+}
+
+@code {
+    private static readonly (string Kind, string Label)[] Kinds =
+    [
+        ("jours", "Jours"), ("semaines", "Semaines"), ("mois", "Mois"), ("annees", "Années"),
+        ("bordereaux", "Bordereaux"), ("produits", "Médicaments"), ("clients", "Patients")
+    ];
+
+    private static readonly IReadOnlyList<Period> Periods = BuildPeriods();
+
+    private const string Montant = "Montant", Factures = "Factures", Brut = "Marge + Maj", Boites = "Boîtes";
+    private static readonly string[] TimeMetrics = [Montant, Factures, Brut];
+
+    [SupplyParameterFromQuery(Name = "type")] public string? Type { get; set; }
+
+    private string _kind = "mois";
+    private Period _period = Periods.First(p => p.Label == "Cette année");
+    private Stats? _data;
+    private ApiException? _error;
+    private string _metric = Montant;
+    private string? _rankMetric;
+    private int _selected = -1;
+
+    private bool IsTime => _kind is not ("produits" or "clients");
+    private string KindLabel => Kinds.First(k => k.Kind == _kind).Label;
+    private string[] RankMetrics => _kind == "produits" ? [Boites, Montant] : [Montant, Factures, Boites];
+    private string RankMetric => _rankMetric is { } m && RankMetrics.Contains(m) ? m : RankMetrics[0];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var kind = Kinds.Any(k => k.Kind == Type) ? Type! : "mois";
+        if (kind == _kind && (_data is not null || _error is not null))
+            return;
+        _kind = kind;
+        await LoadAsync();
+    }
+
+    private void ShowKind(string kind) => Nav.NavigateTo($"statistiques?type={kind}", replace: true);
+
+    private async Task ChangePeriodAsync(Period period)
+    {
+        _period = period;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _data = null;
+        _error = null;
+        _selected = -1;
+        try
+        {
+            _data = await Api.StatsAsync(_kind, _period);
+            if (IsTime)
+                _selected = _data.Rows.Count - 1;
+        }
+        catch (ApiException ex)
+        {
+            _error = ex;
+        }
+    }
+
+    private static string Summary(StatRow t) =>
+        t.Factures > 0
+            ? $"{Fmt.Number(t.Factures)} factures" + (t.Quantite > 0 ? $" · {Fmt.Number(t.Quantite)} boîtes" : "")
+            : $"{Fmt.Number(t.Quantite)} boîtes";
+
+    private List<BarChart.Bar> TimeBars() => _data!.Rows.Select(r => _metric switch
+    {
+        Factures => new BarChart.Bar(r.Short ?? r.Label, $"{r.Label} : {r.Factures} factures", [r.Factures], Fmt.Compact(r.Factures)),
+        Brut => new BarChart.Bar(r.Short ?? r.Label, $"{r.Label} : marge {Fmt.Money(r.Marge)}, maj {Fmt.Money(r.Maj)}", [r.Marge, r.Maj], Fmt.Compact(r.Brut)),
+        _ => new BarChart.Bar(r.Short ?? r.Label, $"{r.Label} : {Fmt.Money(r.Montant)}", [r.Montant], Fmt.Compact(r.Montant))
+    }).ToList();
+
+    private List<StatRow> RankedRows() => _data!.Rows.OrderByDescending(Value).ToList();
+
+    private decimal Value(StatRow r) => RankMetric switch
+    {
+        Factures => r.Factures,
+        Boites => r.Quantite,
+        _ => r.Montant
+    };
+
+    private string Link(StatRow r) => _kind == "produits"
+        ? $"medicaments/{Uri.EscapeDataString(r.Key ?? "")}"
+        : Patients.PatientUrl(r.Key ?? "", r.Rang ?? "");
+
+    private static string Width(decimal value, decimal max) =>
+        max <= 0 ? "0%" : $"{Math.Max(2, (int)(value / max * 100))}%";
+
+    private static IReadOnlyList<Period> BuildPeriods()
+    {
+        var today = DateTime.Today;
+        return
+        [
+            new("Ce mois", new DateTime(today.Year, today.Month, 1)),
+            new("3 mois", today.AddMonths(-3)),
+            new("6 mois", today.AddMonths(-6)),
+            new("Cette année", new DateTime(today.Year, 1, 1)),
+            new("12 mois", today.AddYears(-1)),
+            new("2 ans", today.AddYears(-2)),
+            new("Tout", new DateTime(2000, 1, 1))
+        ];
+    }
+}

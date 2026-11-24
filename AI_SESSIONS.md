@@ -38,3 +38,20 @@ Rules:
 **Modified files**
 - skills/session-logging/SKILL.md
 - CLAUDE.md
+
+## November 2026
+
+### 2026-11-24 19:55 — Claude Code (claude-opus-5-5)
+
+**What was done**
+- Added the `desktop-mobile-gateway` skill: plan, per-layer references (gateway, agent, mobile, deploy, testing), lessons learned and asset templates taken from SmartCHIFA
+- Listed the new skill in `README.md`
+
+**What wasn't completed**
+- Not pushed to GitHub (the repository is public)
+- The skill has not been used on a second project yet
+
+**Modified files**
+- README.md
+- AI_SESSIONS.md
+- skills/desktop-mobile-gateway/ (new)
