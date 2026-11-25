@@ -55,3 +55,17 @@ Rules:
 - README.md
 - AI_SESSIONS.md
 - skills/desktop-mobile-gateway/ (new)
+
+### 2026-11-25 — Claude Code (claude-opus-5-5)
+
+**What was done**
+- Fixed the one-line install commands: the raw URLs pointed to the `main` branch (404); the repository's branch is `master`
+
+**What wasn't completed**
+- Not pushed to GitHub
+
+**Modified files**
+- README.md
+- install.ps1
+- install.sh
+- AI_SESSIONS.md

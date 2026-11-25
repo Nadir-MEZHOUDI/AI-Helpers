@@ -6,12 +6,12 @@ A personal collection of Claude Code skills, prompts, commands, and helpers — 
 
 **Windows (PowerShell):**
 ```powershell
-irm https://raw.githubusercontent.com/Nadir-MEZHOUDI/AI-Helpers/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Nadir-MEZHOUDI/AI-Helpers/master/install.ps1 | iex
 ```
 
 **Linux / macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nadir-MEZHOUDI/AI-Helpers/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Nadir-MEZHOUDI/AI-Helpers/master/install.sh | bash
 ```
 
 Restart Claude Code after installing.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-Helpers installer for Linux / macOS
-# Usage: curl -fsSL https://raw.githubusercontent.com/Nadir-MEZHOUDI/AI-Helpers/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/Nadir-MEZHOUDI/AI-Helpers/master/install.sh | bash
 
 set -e
 

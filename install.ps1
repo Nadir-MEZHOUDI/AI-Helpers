@@ -1,5 +1,5 @@
 # AI-Helpers installer for Windows
-# Usage: irm https://raw.githubusercontent.com/Nadir-MEZHOUDI/AI-Helpers/main/install.ps1 | iex
+# Usage: irm https://raw.githubusercontent.com/Nadir-MEZHOUDI/AI-Helpers/master/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
